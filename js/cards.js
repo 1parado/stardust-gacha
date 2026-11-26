@@ -78,14 +78,58 @@ export function makeEmblem(seed, arms, color, opts = {}){
    ══════════════════════════════════════════════════════════════ */
 const ART_EXTS = ['webp', 'avif', 'png', 'jpg'];
 
-/** 已确认可用的图片路径，避免每次渲染都重新探测 */
-const artOk = new Map();
-/** 已确认缺失的卡，不再重复探测（否则图鉴每帧都在发 404） */
-const artMissing = new Set();
+/* ── 图片加载状态 ──────────────────────────────────────────────
+   同一张卡会在舞台、图鉴、结果页、灯箱里反复出现。共享缓存保证
+   「只探测一次、命中即同步点亮」；偶发失败不永久封杀，下一次调用
+   会重试。之前用 artMissing 永久封杀：一次 load 失败就让这张卡
+   永远退回几何徽记——这正是「有时抽出来没图」的根因。 */
+const artUrl = new Map();     // id -> 已确认可渲染的图片路径
+const artPending = new Map(); // id -> 正在进行的探测 Promise
+
+/** 加载并解码单张图，返回路径；失败 reject */
+function loadOne(src){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const ok = () => {
+      // decode() 保证这张图真的能画出来，避免 load 成功却空白
+      if (img.decode) img.decode().then(() => resolve(src), reject);
+      else resolve(src);
+    };
+    img.onload = ok;
+    img.onerror = reject;
+    img.src = src;
+    // 缓存命中时 onload 可能已经错过
+    if (img.complete && img.naturalWidth > 0) ok();
+  });
+}
+
+/** 按 webp → avif → png → jpg 探测，返回第一个能解码的路径 */
+async function probeArt(id){
+  for (const ext of ART_EXTS){
+    try { return await loadOne(`assets/cards/${id}.${ext}`); }
+    catch (e){ /* 换下一个格式 */ }
+  }
+  return null;
+}
+
+/** 确保某张卡的图片就绪。同一 id 共享一次请求，成功后永久缓存 */
+export function ensureArt(id){
+  if (!id) return Promise.resolve(null);
+  if (artUrl.has(id)) return Promise.resolve(artUrl.get(id));
+  const pending = artPending.get(id);
+  if (pending) return pending;
+  const p = probeArt(id).then((url) => {
+    artPending.delete(id);
+    if (url) artUrl.set(id, url);
+    return url;
+  });
+  artPending.set(id, p);
+  return p;
+}
 
 /* 启动时把卡图预热进 HTTP 缓存：抽卡的卡是随机的，等到翻牌那一刻才
    发请求，网络稍慢就会「先徽记、几秒后才冒出立绘」。空闲时分批预取，
-   之后 wireArt / background-image 都能命中缓存，翻牌即见立绘。 */
+   之后 wireArt 就能命中缓存，翻牌即见立绘。 */
 let preloadStarted = false;
 export function preloadArt(){
   if (preloadStarted) return;
@@ -96,14 +140,7 @@ export function preloadArt(){
     let i = 0;
     const batch = () => {
       // 每批只发 6 张，避免一瞬间 61 个请求抢占翻牌演出的带宽
-      for (let n = 0; n < 6 && i < ids.length; i++, n++){
-        const id = ids[i];
-        if (artOk.has(id) || artMissing.has(id)) continue;
-        const img = new Image();
-        img.onload = () => artOk.set(id, true);
-        img.onerror = () => artMissing.add(id);
-        img.src = `assets/cards/${id}.webp`;
-      }
+      for (let n = 0; n < 6 && i < ids.length; i++, n++) ensureArt(ids[i]);
       if (i < ids.length) idle(batch, { timeout: 1500 });
     };
     idle(batch, { timeout: 1500 });
@@ -119,79 +156,38 @@ export function artCandidates(card){
 
 /**
  * 真实图片层。
- * 不用 <picture> 的多 <source>：浏览器只会挑第一个"它支持的类型"，
- * 而 .avif 在所有现代浏览器里都"支持"——于是永远选中那个不存在的文件，
- * 后面的 png 兜底根本轮不到（实测如此）。
- * 改成单个 <img>，路径由运行时探测决定。
+ * 不用 <picture> 的多 <source>：浏览器只会挑第一个「它支持的类型」，
+ * 而 .avif 在所有现代浏览器里都「支持」——于是永远选中那个不存在的文件，
+ * 后面的 png 兜底根本轮不到（实测如此）。改成单个 <img>，路径由运行时决定。
+ * 这里始终渲染图片层：加载失败时不会加 has-art，自然退回几何徽记。
  */
 function artLayer(card){
-  const id = card.id;
-  if (artMissing.has(id)) return '';
-  return `<div class="card-art" data-art="${id}">
+  return `<div class="card-art" data-art="${card.id}">
     <img alt="" decoding="async">
   </div>`;
 }
 
 /**
- * 挂载图片层：按 webp → avif → png → jpg 顺序探测，
- * 第一个能解码成功的就用它；全失败则永久标记缺失，不再重试。
+ * 挂载图片层：命中共享缓存就同步点亮（结果页重建 DOM 时不会空一帧），
+ * 否则等探测完成后点亮。探测失败不永久封杀，下次调用会重试。
  */
 export function wireArt(root){
   const layer = root.querySelector('.card-art');
   if (!layer) return;
   const img = layer.querySelector('img');
   if (!img) return;
-
   const id = root.dataset.id;
-  if (artMissing.has(id)) return;
+  if (!id) return;
 
-  // 已预热：缓存命中，直接挂上并点亮，省掉一次 load 事件往返
-  if (artOk.has(id)){
-    img.src = `assets/cards/${id}.webp`;
+  const light = (url) => {
+    if (!url) return;
+    img.src = url;
     layer.classList.add('ok');
     root.classList.add('has-art');
-    return;
-  }
-
-  let i = 0;
-  let settled = false;
-
-  // 每次换源都重新绑一次 once 监听，避免监听器堆叠
-  const attach = () => {
-    img.addEventListener('load', onLoad, { once: true });
-    img.addEventListener('error', onError, { once: true });
-  };
-  const onLoad = () => {
-    if (settled) return;
-    if (img.naturalWidth > 0){
-      settled = true;
-      layer.classList.add('ok');
-      root.classList.add('has-art');
-      artOk.set(id, true);
-    } else {
-      next();
-    }
-  };
-  const onError = () => {
-    if (settled) return;
-    next();
-  };
-  const next = () => {
-    if (settled) return;
-    if (i >= ART_EXTS.length){
-      settled = true;
-      artMissing.add(id);
-      layer.classList.add('miss');
-      root.classList.remove('has-art');
-      return;
-    }
-    // 先绑定再改 src：改 src 可能同步触发 load/error，
-    // 反过来就会漏掉一次回调
-    attach();
-    img.src = `assets/cards/${id}.${ART_EXTS[i++]}`;
   };
 
-  next();
+  if (artUrl.has(id)){ light(artUrl.get(id)); return; }
+  ensureArt(id).then(light);
 }
 
 /* ══════════════════════════════════════════════════════════════
