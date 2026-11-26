@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>星尘 · 拟物抽卡</title>
+<script>
+  try { if (localStorage.getItem('stardust.theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (e) {}
+</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="bg"></div>
+
+<div id="app">
+  <div class="topbar">
+    <button class="icon-btn mat-glass pressable" id="btnTheme" title="切换到浅色模式" aria-label="切换到浅色模式" aria-pressed="false">☀</button>
+    <button class="icon-btn mat-glass pressable" id="btnSound" title="音效开关" aria-label="音效开关" aria-pressed="true">♪</button>
+  </div>
+
+  <div class="views">
+    <!-- 抽卡 -->
+    <section class="view active" id="view-draw" role="tabpanel" aria-label="抽卡">
+      <!-- 战绩：累计抽数 + 至臻记录，分享卡的数据源 -->
+      <div class="stats mat-alu" id="stats">
+        <div class="stats__item">
+          <div class="stats__num" id="statPulls">0</div>
+          <div class="stats__label">累计抽卡</div>
+        </div>
+        <div class="stats__div"></div>
+        <div class="stats__item stats__item--coll">
+          <div class="stats__num" id="statCollection">0/61</div>
+          <div class="stats__label">图鉴拥有</div>
+        </div>
+        <div class="stats__div"></div>
+        <div class="stats__item stats__item--ex">
+          <div class="stats__num" id="statEX">未获得</div>
+          <div class="stats__label">至臻 · 无相</div>
+        </div>
+      </div>
+
+      <!-- 最新获得：把立绘放到抽卡页上，也让玩家看见战果 -->
+      <div class="featured" id="featured" aria-live="polite">
+        <div class="featured__art" id="featuredArt"></div>
+        <div class="featured__meta">
+          <div class="featured__label" id="featuredLabel">最新获得</div>
+          <div class="featured__name" id="featuredName">—</div>
+        </div>
+        <div class="featured__fade" aria-hidden="true"></div>
+      </div>
+
+      <!-- 保底进度 -->
+      <div class="pity mat-alu">
+        <div class="pity__head">
+          <span class="pity__label">距保底</span>
+          <span class="pity__num" id="pityNum">0 / 80</span>
+        </div>
+        <div class="groove" id="groove"><div class="groove__fill" id="grooveFill"></div></div>
+      </div>
+
+      <!-- 自适应留白：把抽卡按钮推到标签栏上方 -->
+      <div class="draw-spacer" aria-hidden="true"></div>
+
+      <!-- 三档抽卡：无限抽卡，不再显示价格 -->
+      <div class="draw-actions">
+        <button class="draw-btn draw-btn--one pressable" id="btn1">
+          <span class="draw-btn__n">单抽</span>
+          <span class="draw-btn__c">免费</span>
+        </button>
+        <button class="draw-btn draw-btn--five pressable" id="btn5">
+          <span class="draw-btn__n">五连</span>
+          <span class="draw-btn__c">免费</span>
+          <span class="draw-btn__tag">必出 R+</span>
+        </button>
+        <button class="draw-btn draw-btn--ten mat-gold pressable" id="btn10">
+          <span class="draw-btn__n">十连</span>
+          <span class="draw-btn__c">免费</span>
+          <span class="draw-btn__tag">必出 SR+</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 图鉴 -->
+    <section class="view" id="view-coll" role="tabpanel" aria-label="图鉴">
+      <div class="coll-head">
+        <div class="coll-title">图 鉴</div>
+        <div class="coll-count" id="collCount">0 / 61</div>
+      </div>
+      <div class="coll-grid" id="collGrid"></div>
+    </section>
+
+    <!-- 分享 -->
+    <section class="view view-share" id="view-share" role="tabpanel" aria-label="分享">
+      <div class="coll-head">
+        <div class="coll-title">分 享</div>
+      </div>
+
+      <div class="share-switch mat-glass" id="shareSwitch" role="tablist" aria-label="分享内容">
+        <button class="share-switch__btn on" data-mode="ex" role="tab" aria-selected="true">至臻时刻</button>
+        <button class="share-switch__btn" data-mode="coll" role="tab" aria-selected="false">图鉴进度</button>
+      </div>
+
+      <div class="share-card" id="shareCard" data-mode="ex">
+        <div class="share-card__art" id="shareArt" aria-hidden="true"></div>
+        <div class="share-card__grid" id="shareGrid" aria-hidden="true"></div>
+        <div class="share-card__veil" aria-hidden="true"></div>
+        <div class="share-card__inner">
+          <div class="share-card__brand">STARDUST · 星尘</div>
+          <div class="share-card__mark" id="shareMark">至 臻</div>
+          <div class="share-card__title" id="shareTitle">尚未相遇</div>
+          <div class="share-card__sub" id="shareSub">至臻 · 无相</div>
+          <div class="share-card__stats">
+            <div class="share-card__stat">
+              <b id="sharePulls">0</b>
+              <span id="sharePullsLabel">累计抽卡</span>
+            </div>
+            <div class="share-card__stat">
+              <b id="shareExAt">—</b>
+              <span id="shareStat2Label">至臻于第几抽</span>
+            </div>
+          </div>
+          <div class="share-card__foot" id="shareFoot">—</div>
+        </div>
+      </div>
+
+      <button class="share-save mat-gold pressable" id="btnSaveShare">保存分享卡</button>
+    </section>
+  </div>
+
+  <nav class="tabbar mat-alu" id="tabbar" role="tablist" aria-label="主导航">
+    <div class="tabpill" id="tabpill" aria-hidden="true"></div>
+    <button class="tab on" data-view="draw" role="tab" aria-selected="true" aria-controls="view-draw"><span class="ico" aria-hidden="true">✦</span>抽卡</button>
+    <button class="tab" data-view="coll" role="tab" aria-selected="false" aria-controls="view-coll"><span class="ico" aria-hidden="true">▤</span>图鉴</button>
+    <button class="tab" data-view="share" role="tab" aria-selected="false" aria-controls="view-share"><span class="ico" aria-hidden="true">⤴</span>分享</button>
+  </nav>
+</div>
+
+<!-- 抽卡舞台 -->
+<div id="stage">
+  <div class="stage__vignette" id="vignette"></div>
+  <div class="stage__table" id="table"></div>
+  <div class="beam" id="beam"></div>
+  <div class="stage__card" id="stageCard"></div>
+  <div class="stardust" id="stardust"></div>
+  <div class="stage__info" id="stageInfo">
+    <div class="stage__name" id="stageName"></div>
+    <div class="stage__rar" id="stageRar"></div>
+    <div class="stage__tap" id="stageTap">点击任意处继续</div>
+  </div>
+  <div class="skip mat-glass pressable" id="skip">跳过</div>
+</div>
+
+<div id="toast" class="mat-glass"></div>
+
+<script src="vendor/gsap.min.js"></script>
+<script type="module" src="js/ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+# ═══ 原始素材：61 张 1024×1536 大图，合计约 148MB ═══
+# 不要进 git：仓库会膨胀且拖慢克隆。构建产物 assets/cards/*.webp
+# （约 1.5MB）体积小、页面运行必需，正常提交。
+# 若想备份原图，请用 Git LFS 或网盘，而不是普通 git。
+cards-art/
+
+# 本地 AI 助手状态（会话记忆、skill 缓存，可由 skills-lock.json 重新拉取）
+.workbuddy/
+.claude/
+
+# Python 缓存（tools/build-art.mjs 调用 Pillow 转码）
+__pycache__/
+*.py[cod]
+
+# Node（当前未用，预防性添加）
+node_modules/
+
+# 日志与临时文件
+*.log
+*.tmp
+*.bak
+*.orig
+~$*
+
+# 操作系统 / 编辑器
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vscode/
