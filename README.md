@@ -2,6 +2,7 @@
 
 一个纯前端的拟物抽卡原型。61 张「新艺术运动·铜版版画」风格立绘，无限抽卡，GSAP 已本地化，全程不联网。顶栏 ☀/☾ 可切换暗色与参考 Apple Adopting Liquid Glass 的浅色玻璃风，偏好会保存在本地。
 
+- **在线演示**：https://1parado.github.io/stardust-gacha/
 - 设计文档：[策划案.md](策划案.md)
 - 技术选型：[工具与动效选型.md](工具与动效选型.md)
 - 立绘接入：[assets/cards/README.md](assets/cards/README.md)
