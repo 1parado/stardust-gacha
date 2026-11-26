@@ -7,7 +7,7 @@ import {
   rollOne, rollMany, commitPull, PITY, EX_CARD, shareSummary,
 } from './core.js';
 import { createAudio } from './audio.js';
-import { cardHTML, attachTilt, wireArt, preloadArt } from './cards.js';
+import { cardHTML, attachTilt, wireArt, preloadArt, ensureArt } from './cards.js';
 import { gyro } from './gyro.js';
 import { createReveal } from './reveal.js';
 import { createLightbox } from './lightbox.js';
@@ -68,6 +68,8 @@ function updateStats(){
   }
 }
 
+let featuredToken = 0;
+
 /** 最新章节：把最好的一张放到展示区 */
 function updateFeatured(results){
   if (!results || !results.length) return;
@@ -87,25 +89,20 @@ function setFeatured(result){
   wrap.classList.remove('empty');
   wrap.classList.toggle('is-ex', result.rarity === 'EX');
 
-  // 有立绘就用立绘：先用离屏 Image 解码，成功后才换上，
-  // 期间旧图一直留着——不会再出现「先空底、几秒后才冒出图」
+  // 有立绘就用立绘：复用共享缓存，解码完成后才换上，期间旧图一直留着。
+  // token 防止快速连抽时上一次的回调把封面换回旧卡。
   const img = $('#featuredImg');
   if (img){
+    const token = ++featuredToken;
     const src = `assets/cards/${result.card.id}.webp`;
     if (img.getAttribute('src') === src){
       img.classList.add('ok');
     } else {
-      const pre = new Image();
-      pre.onload = () => {
-        img.src = src;
+      ensureArt(result.card.id).then((url) => {
+        if (!url || token !== featuredToken) return;
+        img.src = url;
         img.classList.add('ok');
-      };
-      pre.onerror = () => img.classList.remove('ok');
-      pre.src = src;
-      if (pre.complete && pre.naturalWidth > 0){ // 缓存命中，同步收尾
-        img.src = src;
-        img.classList.add('ok');
-      }
+      });
     }
   }
   art.style.opacity = '.92';
@@ -227,6 +224,9 @@ function doOne(){
   persist();
   unlockCards(added);
 
+  // 演出前就发起图片请求：和 8 秒分镜并行，翻牌时图早已解码就绪
+  ensureArt(res.card.id);
+
   // 结算即刷新战绩：数字在演出开始前就已更新，不用等"收下"或刷新页面
   updateEconomy();
   updateFeatured([res]);
@@ -241,6 +241,9 @@ function doMulti(count){
   const added = commitPull(save, results);
   persist();
   unlockCards(added);
+
+  // 十连要同时亮 10 张图：演出前全部发起请求，避免翻完牌还在一张张加载
+  results.forEach(r => ensureArt(r.card.id));
 
   // 同上：抽卡结果一落盘就刷新，演出只是展示
   updateEconomy();
