@@ -78,6 +78,21 @@ export function makeEmblem(seed, arms, color, opts = {}){
    ══════════════════════════════════════════════════════════════ */
 const ART_EXTS = ['webp', 'avif', 'png', 'jpg'];
 
+/* ── CDN 加速 ──────────────────────────────────────────────────
+   图片与页面同源托管在 GitHub Pages，但 github.io 在国内访问慢且
+   不稳定。jsDelivr 有国内节点，对"其他人"访问快得多。
+   只在部署域名下用 CDN；本地开发仍走相对路径，避免调试时反而变慢。
+   jsdelivr 返回 ACAO:*，Canvas 导出需给 img 设 crossOrigin。 */
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/1parado/stardust-gacha@main/';
+const USE_CDN = location.hostname === '1parado.github.io';
+export const usingCDN = USE_CDN;
+
+/** 卡图地址：部署走 CDN，本地走同源。ext 缺省 webp。 */
+export function imageUrl(id, ext = 'webp'){
+  const p = `assets/cards/${id}.${ext}`;
+  return USE_CDN ? CDN_BASE + p : p;
+}
+
 /* ── 图片加载状态 ──────────────────────────────────────────────
    同一张卡会在舞台、图鉴、结果页、灯箱里反复出现。共享缓存保证
    「只探测一次、命中即同步点亮」；偶发失败不永久封杀，下一次调用
@@ -90,6 +105,9 @@ const artPending = new Map(); // id -> 正在进行的探测 Promise
 function loadOne(src){
   return new Promise((resolve, reject) => {
     const img = new Image();
+    // 跨域图要进 Canvas（分享卡导出）必须声明 anonymous，
+    // 否则画布被污染，toDataURL 抛 SecurityError
+    if (USE_CDN) img.crossOrigin = 'anonymous';
     const ok = () => {
       // decode() 保证这张图真的能画出来，避免 load 成功却空白
       if (img.decode) img.decode().then(() => resolve(src), reject);
@@ -103,11 +121,19 @@ function loadOne(src){
   });
 }
 
-/** 按 webp → avif → png → jpg 探测，返回第一个能解码的路径 */
+/** 按 webp → avif → png → jpg 探测，返回第一个能解码的路径。
+    CDN 不可用（网络/未同步）时整套格式回退到同源本地路径。 */
 async function probeArt(id){
   for (const ext of ART_EXTS){
-    try { return await loadOne(`assets/cards/${id}.${ext}`); }
+    try { return await loadOne(imageUrl(id, ext)); }
     catch (e){ /* 换下一个格式 */ }
+  }
+  // CDN 整体失败：退回同源（部署在 github.io 时本地路径仍可用）
+  if (USE_CDN){
+    for (const ext of ART_EXTS){
+      try { return await loadOne(`assets/cards/${id}.${ext}`); }
+      catch (e){ /* 下一个 */ }
+    }
   }
   return null;
 }
@@ -151,7 +177,7 @@ export function preloadArt(){
 }
 
 export function artCandidates(card){
-  return ART_EXTS.map(ext => `assets/cards/${card.id}.${ext}`);
+  return ART_EXTS.map(ext => imageUrl(card.id, ext));
 }
 
 /**
