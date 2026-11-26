@@ -7,10 +7,10 @@ import {
   rollOne, rollMany, commitPull, PITY, EX_CARD, shareSummary,
 } from './core.js';
 import { createAudio } from './audio.js';
-import { cardHTML, attachTilt, wireArt, preloadArt, ensureArt, imageUrl, usingCDN } from './cards.js';
+import { cardHTML, attachTilt, wireArt, preloadArt, ensureArt, imageUrl, usingCDN } from './cards.js?v=20261127';
 import { gyro } from './gyro.js';
-import { createReveal } from './reveal.js';
-import { createLightbox } from './lightbox.js';
+import { createReveal } from './reveal.js?v=20261127';
+import { createLightbox } from './lightbox.js?v=20261127';
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
