@@ -81,7 +81,7 @@ export function createLightbox({ audio }){
 
     const cardEl = stageEl.querySelector('.card3d');
     wireArt(cardEl);
-    tiltCleanup = attachTilt(cardEl, gsap, { maxTilt: 14, useGyro: true });
+    tiltCleanup = attachTilt(cardEl, gsap, { maxTilt: 20, useGyro: true });
 
     if (card.rarity === 'SSR' || card.rarity === 'EX'){
       const holo = cardEl.querySelector('.holo');
