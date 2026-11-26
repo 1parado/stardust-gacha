@@ -4,7 +4,7 @@
    ══════════════════════════════════════════════════════════════ */
 
 import { RARITY } from './core.js';
-import { cardHTML, wireArt } from './cards.js';
+import { cardHTML, wireArt } from './cards.js?v=20261127';
 
 const ORDER = { EX:5, SSR:4, SR:3, R:2, N:1 };
 export const orderOf = (r) => ORDER[r] || 0;
