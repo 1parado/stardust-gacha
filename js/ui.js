@@ -7,7 +7,7 @@ import {
   rollOne, rollMany, commitPull, PITY, EX_CARD, shareSummary,
 } from './core.js';
 import { createAudio } from './audio.js';
-import { cardHTML, attachTilt, wireArt } from './cards.js';
+import { cardHTML, attachTilt, wireArt, preloadArt } from './cards.js';
 import { gyro } from './gyro.js';
 import { createReveal } from './reveal.js';
 import { createLightbox } from './lightbox.js';
@@ -87,8 +87,27 @@ function setFeatured(result){
   wrap.classList.remove('empty');
   wrap.classList.toggle('is-ex', result.rarity === 'EX');
 
-  // 有立绘就用立绘；没有就退回徽记的银色底
-  art.style.backgroundImage = `url("assets/cards/${result.card.id}.webp")`;
+  // 有立绘就用立绘：先用离屏 Image 解码，成功后才换上，
+  // 期间旧图一直留着——不会再出现「先空底、几秒后才冒出图」
+  const img = $('#featuredImg');
+  if (img){
+    const src = `assets/cards/${result.card.id}.webp`;
+    if (img.getAttribute('src') === src){
+      img.classList.add('ok');
+    } else {
+      const pre = new Image();
+      pre.onload = () => {
+        img.src = src;
+        img.classList.add('ok');
+      };
+      pre.onerror = () => img.classList.remove('ok');
+      pre.src = src;
+      if (pre.complete && pre.naturalWidth > 0){ // 缓存命中，同步收尾
+        img.src = src;
+        img.classList.add('ok');
+      }
+    }
+  }
   art.style.opacity = '.92';
   name.textContent = result.card.name;
   label.textContent = `${r.label} · ${r.name}`;
@@ -141,7 +160,7 @@ function bindCollCard(el){
   const locked = el.classList.contains('locked');
   // 锁定卡的卡背要维持 180° 翻转，baseRY 把这一基准角交给倾斜引擎
   collTiltCleanups.push(attachTilt(el, gsap, {
-    maxTilt: 10, useGyro: true, baseRY: locked ? 180 : 0,
+    maxTilt: 16, useGyro: true, baseRY: locked ? 180 : 0,
   }));
 
   el.addEventListener('click', () => {
@@ -727,6 +746,7 @@ $('#btnSound').setAttribute('aria-pressed', String(audio.enabled));
 updateEconomy();
 initFeatured();
 renderShare();
+preloadArt();
 
 console.log('%c星尘 v0.4', 'color:#D4AF37;font-weight:700;font-size:14px',
   '\n卡池: ' + ROSTER.length + ' 张',
