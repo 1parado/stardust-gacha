@@ -399,25 +399,12 @@ export function createReveal({ audio, toast }){
       if (advanced) return;
       advanced = true;
       faceAllFront();
-      if (orderOf(best.rarity) >= 3){
-        audio.thud();
-        let faded = false;
-        const go = () => {
-          if (faded) return;
-          faded = true;
-          dust.innerHTML = '';
-          // 播最高稀有度那张的完整演出；结束后再展示整批结果
-          // （必须包闭包：done 回调不带参数，直接传 showSummary 会丢掉 results）
-          playOne(best, () => showSummary(results));
-        };
-        gsap.to(wrap, {
-          opacity: 0, scale: .92, duration: 0.35, ease: 'power2.in',
-          onComplete: go,
-        });
-        setTimeout(go, 420);
-      } else {
-        attachExit(wrap);
-      }
+      // 多连抽不再插播单卡完整演出：之前的做法是抽到 SR+ 就再播 8 秒
+      // 单卡演出，结果页要等 ~10 秒才出现。结果页已按稀有度排序、最高卡
+      // 排在最前并标注「本轮最高」，信息不丢。单抽仍保留完整演出。
+      dust.innerHTML = '';
+      if (orderOf(best.rarity) >= 3) audio.arpeggio(orderOf(best.rarity) >= 5 ? 7 : 3);
+      attachExit(wrap);
     };
 
     tl.to({}, { duration: 0.9 }, '>');
