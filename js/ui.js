@@ -7,7 +7,7 @@ import {
   rollOne, rollMany, commitPull, PITY, EX_CARD, shareSummary,
 } from './core.js';
 import { createAudio } from './audio.js';
-import { cardHTML, attachTilt, wireArt, preloadArt, ensureArt } from './cards.js';
+import { cardHTML, attachTilt, wireArt, preloadArt, ensureArt, imageUrl, usingCDN } from './cards.js';
 import { gyro } from './gyro.js';
 import { createReveal } from './reveal.js';
 import { createLightbox } from './lightbox.js';
@@ -94,16 +94,11 @@ function setFeatured(result){
   const img = $('#featuredImg');
   if (img){
     const token = ++featuredToken;
-    const src = `assets/cards/${result.card.id}.webp`;
-    if (img.getAttribute('src') === src){
+    ensureArt(result.card.id).then((url) => {
+      if (!url || token !== featuredToken) return;
+      if (img.getAttribute('src') !== url) img.src = url;
       img.classList.add('ok');
-    } else {
-      ensureArt(result.card.id).then((url) => {
-        if (!url || token !== featuredToken) return;
-        img.src = url;
-        img.classList.add('ok');
-      });
-    }
+    });
   }
   art.style.opacity = '.92';
   name.textContent = result.card.name;
@@ -290,7 +285,7 @@ function renderShare(){
     $('#shareGrid').innerHTML = Array.from({ length: 12 }, (_, i) => {
       const c = owned[i];
       return c
-        ? `<div class="share-cell"><i style="background-image:url('assets/cards/${c.id}.webp')"></i></div>`
+        ? `<div class="share-cell"><i style="background-image:url('${imageUrl(c.id)}')"></i></div>`
         : '<div class="share-cell locked"></div>';
     }).join('');
     wrap.classList.toggle('is-locked', s.collection === 0);
@@ -304,7 +299,7 @@ function renderShare(){
     // 至臻时刻：至臻立绘 + 第几次抽到
     const got = s.exOwned;
     wrap.classList.toggle('is-locked', !got);
-    $('#shareArt').style.backgroundImage = got ? `url("assets/cards/${EX_CARD.id}.webp")` : '';
+    $('#shareArt').style.backgroundImage = got ? `url("${imageUrl(EX_CARD.id)}")` : '';
     $('#shareMark').textContent = got ? '至 臻' : '未 解 锁';
     $('#shareTitle').textContent = got ? EX_CARD.name : '尚未相遇';
     $('#shareSub').textContent = '至臻 · 无相';
@@ -336,6 +331,18 @@ function canvasRoundRect(ctx, x, y, w, h, r){
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
+}
+
+/** 给 Canvas 加载一张卡图：CDN 优先，失败退回同源；跨域需 anonymous 否则污染画布 */
+async function loadArtForCanvas(id){
+  for (const src of (usingCDN ? [imageUrl(id), `assets/cards/${id}.webp`] : [`assets/cards/${id}.webp`])){
+    const img = new Image();
+    if (usingCDN && src.startsWith('http')) img.crossOrigin = 'anonymous';
+    img.src = src;
+    try { await img.decode(); return img; }
+    catch (e){ /* 换下一个源 */ }
+  }
+  return null;
 }
 
 /** 用 Canvas 画一张竖版分享图并下载 */
@@ -373,11 +380,7 @@ async function saveShareImage(){
   if (isColl){
     // 图鉴进度：4×3 缩略墙，只画已拥有的卡，空格留暗纹
     const owned = ownedSorted().slice(0, 12);
-    const imgEls = await Promise.all(owned.map(async c => {
-      const img = new Image();
-      img.src = `assets/cards/${c.id}.webp`;
-      try { await img.decode(); return img; } catch (e){ return null; }
-    }));
+    const imgEls = await Promise.all(owned.map(c => loadArtForCanvas(c.id)));
     const gx = 50, gy = 108, gap = 12;
     const cw = (W - gx * 2 - gap * 3) / 4, ch = 138;
     for (let i = 0; i < 12; i++){
@@ -402,12 +405,8 @@ async function saveShareImage(){
     }
   } else if (s.exOwned){
     // 至臻立绘：加载失败也只留背景，不影响出图
-    const img = new Image();
-    img.src = `assets/cards/${EX_CARD.id}.webp`;
-    try {
-      await img.decode();
-      ctx.drawImage(img, 75, 30, 600, 900);
-    } catch (e){}
+    const img = await loadArtForCanvas(EX_CARD.id);
+    if (img) ctx.drawImage(img, 75, 30, 600, 900);
   }
 
   // 底部渐隐，压住立绘/图鉴墙下半部，保证文字可读
