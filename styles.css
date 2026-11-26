@@ -1266,13 +1266,15 @@ body{
 }
 .featured__art{
   position:absolute;inset:0;
-  background-size:cover;
-  background-position:center 22%;
-  background-repeat:no-repeat;
   opacity:.92;
-  transition:background-image .3s, opacity .3s;
+  transition:opacity .3s;
   filter:saturate(.92);
 }
+.featured__art img{
+  width:100%;height:100%;object-fit:cover;object-position:center 22%;
+  display:block;opacity:0;transition:opacity .18s;
+}
+.featured__art img.ok{opacity:1}
 /* 立绘底部渐隐，让文字压得住 */
 .featured__fade{
   position:absolute;inset:0;
