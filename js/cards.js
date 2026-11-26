@@ -83,6 +83,36 @@ const artOk = new Map();
 /** 已确认缺失的卡，不再重复探测（否则图鉴每帧都在发 404） */
 const artMissing = new Set();
 
+/* 启动时把卡图预热进 HTTP 缓存：抽卡的卡是随机的，等到翻牌那一刻才
+   发请求，网络稍慢就会「先徽记、几秒后才冒出立绘」。空闲时分批预取，
+   之后 wireArt / background-image 都能命中缓存，翻牌即见立绘。 */
+let preloadStarted = false;
+export function preloadArt(){
+  if (preloadStarted) return;
+  preloadStarted = true;
+  const ids = ROSTER.map(c => c.id);
+  const run = () => {
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 120));
+    let i = 0;
+    const batch = () => {
+      // 每批只发 6 张，避免一瞬间 61 个请求抢占翻牌演出的带宽
+      for (let n = 0; n < 6 && i < ids.length; i++, n++){
+        const id = ids[i];
+        if (artOk.has(id) || artMissing.has(id)) continue;
+        const img = new Image();
+        img.onload = () => artOk.set(id, true);
+        img.onerror = () => artMissing.add(id);
+        img.src = `assets/cards/${id}.webp`;
+      }
+      if (i < ids.length) idle(batch, { timeout: 1500 });
+    };
+    idle(batch, { timeout: 1500 });
+  };
+  // 首屏先画出来，再预热，避免和首屏渲染抢主线程
+  if (document.readyState === 'complete') run();
+  else window.addEventListener('load', run, { once: true });
+}
+
 export function artCandidates(card){
   return ART_EXTS.map(ext => `assets/cards/${card.id}.${ext}`);
 }
@@ -114,6 +144,14 @@ export function wireArt(root){
 
   const id = root.dataset.id;
   if (artMissing.has(id)) return;
+
+  // 已预热：缓存命中，直接挂上并点亮，省掉一次 load 事件往返
+  if (artOk.has(id)){
+    img.src = `assets/cards/${id}.webp`;
+    layer.classList.add('ok');
+    root.classList.add('has-art');
+    return;
+  }
 
   let i = 0;
   let settled = false;
