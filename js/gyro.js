@@ -7,9 +7,16 @@
    · 广播归一化倾斜量 { x, y } ∈ [-1, 1]
    ══════════════════════════════════════════════════════════════ */
 
-const MAX_DEG = 22;   // 设备倾斜到该角度即达到满幅
-const EMA = 0.22;     // 传感器抖动抑制（指数平滑系数）
+const MAX_DEG = 9;    // 设备倾斜到该角度即达到满幅（原 22 太迟钝）
+const EMA = 0.3;      // 传感器抖动抑制（指数平滑系数）；略调高让小幅动作更快跟上
+const CURVE = 0.7;    // 小角度放大曲线：<1 表示轻微倾斜就有明显反馈
 const SENSOR_TIMEOUT = 2200;
+
+/** 把归一化倾斜过一道曲线：小角度放大，大角度仍钳在 ±1 */
+function shape(v){
+  const a = Math.min(1, Math.abs(v));
+  return Math.sign(v) * Math.pow(a, CURVE);
+}
 
 const tiltSubs = new Set();
 const statusSubs = new Set();
@@ -52,8 +59,8 @@ function flush(){
   st.smooth.gamma += (dg - st.smooth.gamma) * EMA;
 
   emitTilt({
-    x: clamp(st.smooth.gamma / MAX_DEG, -1, 1),
-    y: clamp(st.smooth.beta / MAX_DEG, -1, 1),
+    x: shape(clamp(st.smooth.gamma / MAX_DEG, -1, 1)),
+    y: shape(clamp(st.smooth.beta / MAX_DEG, -1, 1)),
   });
 }
 
@@ -144,8 +151,8 @@ export const gyro = {
   get status(){ return st.status; },
   get tilt(){
     return {
-      x: clamp(st.smooth.gamma / MAX_DEG, -1, 1),
-      y: clamp(st.smooth.beta / MAX_DEG, -1, 1),
+      x: shape(clamp(st.smooth.gamma / MAX_DEG, -1, 1)),
+      y: shape(clamp(st.smooth.beta / MAX_DEG, -1, 1)),
     };
   },
 
