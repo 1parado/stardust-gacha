@@ -4,7 +4,7 @@
    ══════════════════════════════════════════════════════════════ */
 
 import { RARITY } from './core.js';
-import { cardHTML, attachTilt, wireArt } from './cards.js';
+import { cardHTML, attachTilt, wireArt } from './cards.js?v=20261127';
 
 export function createLightbox({ audio }){
   let root = null;
